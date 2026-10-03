@@ -47,5 +47,10 @@
   "gui.parchmentmap.nav.arrived": "You have arrived: %s",
   "gui.parchmentmap.nav.route_done": "Route complete",
   "gui.parchmentmap.nav.hud": "→ %s · %s blk",
-  "gui.parchmentmap.blocks": "blk"
+  "gui.parchmentmap.blocks": "blk",
+  "gui.parchmentmap.ctx.edit": "Edit",
+  "gui.parchmentmap.ctx.tp": "Teleport",
+  "gui.parchmentmap.ctx.tp_cheats": "Teleport only works with cheats enabled",
+  "gui.parchmentmap.edit.pick_icon": "Choose an icon",
+  "gui.parchmentmap.edit.pick_color": "Choose a color"
 }

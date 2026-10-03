@@ -47,5 +47,10 @@
   "gui.parchmentmap.nav.arrived": "Ви прибули: %s",
   "gui.parchmentmap.nav.route_done": "Маршрут завершено",
   "gui.parchmentmap.nav.hud": "→ %s · %s бл.",
-  "gui.parchmentmap.blocks": "бл."
+  "gui.parchmentmap.blocks": "бл.",
+  "gui.parchmentmap.ctx.edit": "Редагувати",
+  "gui.parchmentmap.ctx.tp": "Телепортуватись",
+  "gui.parchmentmap.ctx.tp_cheats": "Телепорт працює лише з увімкненими читами",
+  "gui.parchmentmap.edit.pick_icon": "Оберіть значок",
+  "gui.parchmentmap.edit.pick_color": "Оберіть колір"
 }
