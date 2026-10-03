@@ -15,6 +15,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /** Велика карта у стилі пергаменту: панель мап ліворуч, вкладки «Мітки / Маршрути» праворуч. */
 public class FullMapScreen extends Screen {
@@ -31,6 +32,8 @@ public class FullMapScreen extends Screen {
     private Stroke curStroke;
     private Waypoint selWp;
     private Route selRoute;
+    private Waypoint ctxWp;
+    private int ctxX, ctxY;
     private final List<PButton> markBtns = new ArrayList<>();
     private final List<PButton> routeBtns = new ArrayList<>();
 
@@ -228,6 +231,7 @@ public class FullMapScreen extends Screen {
             g.drawString(font, c, mapX1 + 11, mapY2 - 17, MapRender.INK, false);
         }
         drawScaleBar(g);
+        drawCompass(g, mapX1 + 26, mapY2 - 54);
 
         // права панель
         g.fill(sideX1 - 1, mapY1 - 1, sideX2 + 1, mapY2 + 1, MapRender.INK);
@@ -235,8 +239,10 @@ public class FullMapScreen extends Screen {
         drawList(g, mx, my);
         super.render(g, mx, my, pt);
 
+        if (ctxWp != null) drawCtx(g, mx, my);
+
         // підказка над міткою
-        if (inMap(mx, my)) {
+        if (ctxWp == null && inMap(mx, my)) {
             Waypoint h = waypointAt(mx, my, v);
             if (h != null) {
                 LocalPlayer p = mc.player;
@@ -247,6 +253,65 @@ public class FullMapScreen extends Screen {
                         Component.literal(dist + " " + tr("blocks").getString())), mx, my);
             }
         }
+    }
+
+    // ---------------------------------------------------------------- меню мітки (ПКМ)
+
+    private boolean canTeleport() {
+        LocalPlayer p = Minecraft.getInstance().player;
+        return p != null && p.hasPermissions(2);
+    }
+
+    private void teleport(Waypoint w) {
+        LocalPlayer p = Minecraft.getInstance().player;
+        if (p == null || !dim().equals(w.dim)) return;
+        p.connection.sendCommand(String.format(Locale.ROOT, "tp @s %.1f %d %.1f", w.x + 0.5, w.y, w.z + 0.5));
+        onClose();
+    }
+
+    private int[] ctxRect() {
+        int w = 100, h = 44;
+        return new int[]{Math.min(ctxX, width - w - 2), Math.min(ctxY, height - h - 2), w, h};
+    }
+
+    private void drawCtx(GuiGraphics g, int mx, int my) {
+        int[] r = ctxRect();
+        int x = r[0], y = r[1], w = r[2], h = r[3];
+        g.fill(x - 1, y - 1, x + w + 1, y + h + 1, MapRender.INK);
+        g.fill(x, y, x + w, y + h, MapRender.PARCH);
+        g.drawString(font, font.plainSubstrByWidth(ctxWp.name, w - 8), x + 4, y + 3, 0xFF6B5535, false);
+        boolean can = canTeleport();
+        String[] keys = {"ctx.edit", "ctx.tp"};
+        for (int i = 0; i < 2; i++) {
+            int ry = y + 14 + i * 14;
+            boolean hov = mx >= x && mx < x + w && my >= ry && my < ry + 14;
+            boolean off = i == 1 && !can;
+            if (hov) g.fill(x + 1, ry, x + w - 1, ry + 14, off ? 0xFFD8C9A0 : 0xFFC9AA72);
+            g.drawString(font, tr(keys[i]), x + 6, ry + 3, off ? 0xFF9A8A6A : MapRender.INK, false);
+            if (hov && off) g.renderTooltip(font, tr("ctx.tp_cheats"), mx, my);
+        }
+    }
+
+    private void drawCompass(GuiGraphics g, int cx, int cy) {
+        for (int dy = -14; dy <= 14; dy++) {
+            int dx = (int) Math.round(Math.sqrt(14 * 14 - dy * dy));
+            g.fill(cx - dx - 1, cy + dy, cx + dx + 2, cy + dy + 1, MapRender.INK);
+        }
+        for (int dy = -12; dy <= 12; dy++) {
+            int dx = (int) Math.round(Math.sqrt(12 * 12 - dy * dy));
+            g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, 0xFFF1E3BC);
+        }
+        for (int i = 0; i <= 8; i++) {
+            int hh = i / 3;
+            g.fill(cx - 9 + i, cy - hh, cx - 8 + i, cy + hh + 1, 0xFF8A6A3A);
+            g.fill(cx + 9 - i, cy - hh, cx + 10 - i, cy + hh + 1, 0xFF8A6A3A);
+        }
+        for (int i = 0; i <= 10; i++) {
+            int ww = i / 3;
+            g.fill(cx - ww, cy - 10 + i, cx + ww + 1, cy - 9 + i, 0xFFC0392B);
+            g.fill(cx - ww, cy + 10 - i, cx + ww + 1, cy + 11 - i, MapRender.INK);
+        }
+        g.drawString(font, "N", cx - 2, cy - 24, MapRender.INK, false);
     }
 
     private void drawScaleBar(GuiGraphics g) {
@@ -337,6 +402,20 @@ public class FullMapScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (ctxWp != null) {
+            int[] r = ctxRect();
+            boolean inside = mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3];
+            Waypoint w = ctxWp;
+            ctxWp = null;
+            if (inside) {
+                if (button == 0 && my >= r[1] + 14) {
+                    int row = (int) ((my - r[1] - 14) / 14);
+                    if (row == 0) Minecraft.getInstance().setScreen(new WaypointEditScreen(this, w, false));
+                    else if (row == 1 && canTeleport()) teleport(w);
+                }
+                return true;
+            }
+        }
         if (super.mouseClicked(mx, my, button)) return true;
 
         if (inList(mx, my) && button == 0) {
@@ -356,6 +435,20 @@ public class FullMapScreen extends Screen {
 
         if (!inMap(mx, my)) return false;
         MapRender.View v = view();
+
+        if (button == 1) {
+            Waypoint cw = waypointAt(mx, my, v);
+            if (cw != null) {
+                selWp = cw;
+                tab = 0;
+                scroll = 0;
+                refresh();
+                ctxWp = cw;
+                ctxX = (int) mx;
+                ctxY = (int) my;
+                return true;
+            }
+        }
 
         if (button == 1 || button == 2 || (button == 0 && tool == Tool.PAN)) {
             panning = true;
@@ -454,6 +547,7 @@ public class FullMapScreen extends Screen {
 
     @Override
     public boolean keyPressed(int key, int scan, int mods) {
+        if (ctxWp != null && key == InputConstants.KEY_ESCAPE) { ctxWp = null; return true; }
         if (Keys.OPEN.matches(key, scan)) { onClose(); return true; }
         if (key == InputConstants.KEY_C) { centerOnPlayer(); return true; }
         if (key == InputConstants.KEY_BACKSPACE) { undo(); return true; }

@@ -11,7 +11,10 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -176,7 +179,9 @@ public class MapCache {
         }
         if (y <= min) return 0;
         BlockState st = chunk.getBlockState(pos.set(wx, y, wz));
-        while (y > min && st.getMapColor(level, pos) == MapColor.NONE && st.getFluidState().isEmpty()) {
+        // трава, квіти, папороть тощо не фарбують карту: беремо блок під ними (grass block => зелений)
+        while (y > min && st.getFluidState().isEmpty()
+                && (st.getBlock() instanceof BushBlock || st.getMapColor(level, pos) == MapColor.NONE)) {
             y--;
             st = chunk.getBlockState(pos.set(wx, y, wz));
         }
@@ -185,18 +190,42 @@ public class MapCache {
             while (yy > min && depth < 40 && chunk.getBlockState(pos.set(wx, yy, wz)).getFluidState().is(FluidTags.WATER)) { depth++; yy--; }
             int band = Math.min(depth / 3, 6);
             int c = WATER[band];
-            if (((wx + wz) & 1) == 0 && depth % 3 == 2) c = WATER[Math.min(band + 1, 6)]; // дізер, як на пергаменті
+            if (((wx + wz) & 1) == 0 && depth % 3 == 2) c = WATER[Math.min(band + 1, 6)];
             return abgr(c);
         }
-        int rgb = st.getMapColor(level, pos).col;
-        if (rgb == 0) return 0;
+        int rgb = landColor(level, st, pos, wx, wz);
+        if (rgb < 0) return 0;
         double f = 1.0;
         if (!ceil) {
             int h = level.getHeight(Heightmap.Types.WORLD_SURFACE, wx, wz);
             int hn = level.getHeight(Heightmap.Types.WORLD_SURFACE, wx, wz - 1);
-            if (hn > min + 1) f = h > hn ? 1.12 : h < hn ? 0.88 : 1.0;
+            if (hn > min + 1) f = h > hn ? 1.10 : h < hn ? 0.90 : 1.0;
         }
+        // легкий «піксельний» шум, як на скріншоті
+        int hs = (wx * 73856093) ^ (wz * 19349663);
+        hs ^= hs >>> 13;
+        f *= 1.0 + (((hs & 15) - 7.5) / 7.5) * 0.035;
         return abgr(scale(rgb, f));
+    }
+
+    private static int landColor(ClientLevel level, BlockState st, BlockPos pos, int wx, int wz) {
+        if (st.is(Blocks.GRASS_BLOCK)) {
+            int c = level.getBiome(pos).value().getGrassColor(wx, wz);
+            return mix(c, 0x6C9A47, 0.45);
+        }
+        if (st.is(BlockTags.LEAVES)) {
+            int c = level.getBiome(pos).value().getFoliageColor();
+            return scale(mix(c, 0x3E6B2C, 0.55), 0.85);
+        }
+        int rgb = st.getMapColor(level, pos).col;
+        return rgb == 0 ? -1 : rgb;
+    }
+
+    private static int mix(int a, int b, double t) {
+        int r = (int) (((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+        int g = (int) (((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+        int bl = (int) ((a & 255) * (1 - t) + (b & 255) * t);
+        return (r << 16) | (g << 8) | bl;
     }
 
     private static int scale(int rgb, double f) {
