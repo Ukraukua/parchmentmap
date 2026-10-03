@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+
+[[mods]]
+modId="parchmentmap"
+version="1.0.0"
+displayName="Parchment Map"
+description='''Карта в стилі старого пергаменту: міні-мапа, мітки, маршрути, малювання.'''
+
+[[dependencies.parchmentmap]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1,1.21)"
+ordering="NONE"
+side="CLIENT"
